@@ -1,71 +1,91 @@
-#include <Arduino.h>
+#include "US015.h"
 
-class US015 {
-private:
-    int trigPin;
-    int echoPin;
-    const float soundSpeed = 0.0343; // Tốc độ âm thanh (cm/µs)
-    const float cmToInch = 0.393701; // Hệ số chuyển đổi cm sang inch
+volatile unsigned long startTime = 0;
+volatile unsigned long pulseDurations[40] = {0}; // Chỉ định nghĩa ở đây
 
-public:
-    // Hàm dựng - tùy chỉnh chân Trig và Echo
-    US015(int triggerPin, int echoPin) : trigPin(triggerPin), echoPin(echoPin) {
-        pinMode(trigPin, OUTPUT);
-        pinMode(echoPin, INPUT);
-        digitalWrite(trigPin, LOW); // Đảm bảo chân Trig ở mức LOW
+std::vector<US015*> US015::sensors;
+
+void IRAM_ATTR US015::echo_ISR(void* arg) {
+    if (arg == nullptr) {
+        Serial.println("ISR: NULL pointer!");
+        return;
     }
 
-    // Đo khoảng cách (cm) không chặn (non-blocking)
-    float measure() {
-        digitalWrite(trigPin, LOW);
-        delayMicroseconds(4);
-        digitalWrite(trigPin, HIGH);
-        delayMicroseconds(10);
-        digitalWrite(trigPin, LOW);
+    US015* sensor = static_cast<US015*>(arg);
 
-        long duration = pulseIn(echoPin, HIGH, 30000); // Timeout 30ms (~500cm)
-        if (duration == 0) return -1; // Nếu không có tín hiệu, trả về -1 (lỗi)
+    if (digitalRead(sensor->echoPin) == HIGH) {
+        startTime = micros();
+        Serial.printf("ISR TRIGGERED: Echo HIGH on pin %d\n", sensor->echoPin);
+    } else {
+        pulseDurations[sensor->echoPin] = micros() - startTime;
+        Serial.printf("Measured pulse duration on pin %d: %lu µs\n", sensor->echoPin, pulseDurations[sensor->echoPin]);
+    }
+}
 
-        return (duration * soundSpeed) / 2;
+// 🔹 HÀM DỰNG CHỈ GÁN GIÁ TRỊ BIẾN
+US015::US015(int triggerPin, int echoPin) : trigPin(triggerPin), echoPin(echoPin) {}
+
+// 🔹 HÀM `init()` XỬ LÝ KHỞI TẠO ISR
+void US015::init() {
+    pinMode(trigPin, OUTPUT);
+    pinMode(echoPin, INPUT);
+    digitalWrite(trigPin, LOW);
+
+    sensors.push_back(this);
+
+    static bool isISRServiceInitialized = false;
+    if (!isISRServiceInitialized) {
+        gpio_install_isr_service(0);
+        isISRServiceInitialized = true;
     }
 
-    // Đo khoảng cách trung bình với `samples` lần, sử dụng `millis()` (không chặn loop)
-    float measureAverage(int samples = 5) {
-        if (samples <= 0) samples = 1;
-        float sum = 0;
-        int validSamples = 0;
+    esp_err_t err = gpio_isr_handler_add((gpio_num_t)echoPin, echo_ISR, (void*)this);
+    if (err != ESP_OK) {
+        Serial.printf("Error adding ISR to pin %d: %d\n", echoPin, err);
+    } else {
+        Serial.printf("ISR added successfully on pin %d!\n", echoPin);
+    }    
+}
 
-        unsigned long lastTime = millis();
+float US015::measure() {
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(4);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
 
-        for (int i = 0; i < samples; i++) {
-            while (millis() - lastTime < 5); // Chờ 5ms mà không chặn CPU
-            lastTime = millis();
+    long duration = pulseIn(echoPin, HIGH, 30000); // Timeout 30ms (~500cm)
+    if (duration == 0) {
+        Serial.println("Lỗi: Không nhận được tín hiệu ECHO.");
+        return -1;
+    }
 
-            float distance = measure();
-            if (distance > 0) { 
-                sum += distance;
-                validSamples++;
-            }
+    return (duration * soundSpeed) / 2;
+}
+
+float US015::measureAverage(int samples) {
+    if (samples <= 0) samples = 1; // Đảm bảo ít nhất có 1 lần đo
+
+    float sum = 0;
+    int validSamples = 0;
+    unsigned long lastTime = millis();
+
+    for (int i = 0; i < samples; i++) {
+        // Chờ 5ms mà không chặn CPU (Non-blocking delay)
+        while (millis() - lastTime < 5) {
+            // Cho phép chương trình tiếp tục chạy các tác vụ khác
+            yield();
         }
+        lastTime = millis(); // Cập nhật thời gian mẫu tiếp theo
 
-        return (validSamples > 0) ? (sum / validSamples) : -1; // Trả về -1 nếu không có mẫu hợp lệ
-    }
-
-    // Đo khoảng cách an toàn: Trả về `true` nếu hợp lệ, `false` nếu lỗi
-    bool measureSafe(float &distance, float maxDistance = 400.0) {
-        distance = measure();
-        return (distance > 0 && distance <= maxDistance);
-    }
-
-    // Đo khoảng cách theo inch
-    float measureInches() {
         float distance = measure();
-        return (distance > 0) ? (distance * cmToInch) : -1;
+        if (distance > 0) { // Bỏ qua các giá trị lỗi (-1)
+            sum += distance;
+            validSamples++;
+        }
     }
 
-    // Đo inch trung bình với số mẫu tùy chỉnh
-    float measureInchesAverage(int samples = 5) {
-        float distance = measureAverage(samples);
-        return (distance > 0) ? (distance * cmToInch) : -1;
-    }
-};
+    return (validSamples > 0) ? (sum / validSamples) : -1; // Trả về -1 nếu không có mẫu hợp lệ
+}
+
+
