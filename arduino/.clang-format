@@ -1,0 +1,17 @@
+BasedOnStyle: Google
+ColumnLimit: 200
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Empty
+
+# Thêm các cài đặt phạt (penalty) để tránh wrap sớm
+PenaltyBreakAssignment: 1000
+PenaltyBreakBeforeFirstCallParameter: 1000
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 10
+
+# Tắt tự động xuống dòng comment
+ReflowComments: false
+
+# Giữ nguyên comment chứa từ khóa đặc biệt (TODO, NOTE, v.v.)
+CommentPragmas: '^/*([A-Za-z]+:.*)|\\(.*\\*/)'
+SpacesInBlockComment: true
