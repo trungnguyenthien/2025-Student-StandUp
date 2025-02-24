@@ -25,3 +25,33 @@ class DFPlayerMini {
 };
 
 #endif
+
+/**
+ * 
+#include <Arduino.h>
+#include "DFPlayerMini.h"
+
+#define DF_RX 16  // GPIO16 (RX2)
+#define DF_TX 17  // GPIO17 (TX2)
+
+DFPlayerMini dfPlayer(Serial2, DF_RX, DF_TX);
+
+void setup() {
+    Serial.begin(115200);
+
+    if (!dfPlayer.begin()) {
+        Serial.println("🚨 Không tìm thấy DFPlayer Mini!");
+        while (1);
+    }
+    
+    Serial.println("✅ DFPlayer Mini sẵn sàng!");
+    
+    dfPlayer.setVolume(20);
+    dfPlayer.play(1);  // Phát bài số 1
+}
+
+void loop() {
+    delay(1000);
+}
+
+ */
