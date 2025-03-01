@@ -10,18 +10,19 @@ class DFPlayerMini {
   int rxPin, txPin;        // Chân UART
   int volume = 15;         // Mức âm lượng mặc định (0-30)
 
-  void sendCommand(uint8_t command, uint8_t param1 = 0, uint8_t param2 = 0);  // Gửi lệnh UART
+  uint8_t sendCommand(uint8_t command, uint8_t param1, uint8_t param2);  // Gửi lệnh UART
+  uint8_t readResponse();
 
  public:
   DFPlayerMini(HardwareSerial& serialPort, int rx, int tx);  // Constructor
   bool begin();                                              // Khởi động module
-  void play(int trackNum);                                   // Phát bài hát theo số
-  void stop();                                               // Dừng phát nhạc
-  void next();                                               // Chuyển bài tiếp theo
-  void prev();                                               // Chuyển bài trước đó
-  void setVolume(int vol);                                   // Cài đặt âm lượng
-  void pause();                                              // Tạm dừng nhạc
-  void resume();                                             // Tiếp tục phát nhạc
+  uint8_t play(int trackNum);                                // Phát bài hát theo số
+  uint8_t stop();                                            // Dừng phát nhạc
+  uint8_t next();                                            // Chuyển bài tiếp theo
+  uint8_t prev();                                            // Chuyển bài trước đó
+  uint8_t setVolume(int vol);                                // Cài đặt âm lượng
+  uint8_t pause();                                           // Tạm dừng nhạc
+  uint8_t resume();                                          // Tiếp tục phát nhạc
 };
 
 #endif
